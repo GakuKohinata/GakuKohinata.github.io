@@ -93,8 +93,21 @@ window.createRoom = function(){
 
 window.joinRoom = function(){
   role = "child";
-  roomId = document.getElementById("roomInput").value;
-  enterRoom();
+  roomId = document.getElementById("roomInput").value.trim().toLowerCase();
+
+  if(!roomId){
+    alert("ルームIDを入力してください");
+    return;
+  }
+
+  // ルーム存在チェック
+  get(ref(db, "rooms/"+roomId)).then(snap=>{
+    if(!snap.exists()){
+      alert("そのルームは存在しません");
+      return;
+    }
+    enterRoom();
+  });
 }
 
 function enterRoom(){
