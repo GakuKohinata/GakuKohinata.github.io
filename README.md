@@ -1,6 +1,8 @@
 # GakuKohinata.github.io
 # ことば落とし（Kotoba Otoshi）
 
+サイトURL：https://gakukohinata.github.io/
+
 千原ジュニア氏考案の人気ボードゲーム「ことば落とし」をオンラインで楽しめるWebアプリです。
 日常会話の中に、指定されたワードを「いかに自然に紛れ込ませるか」を競う、トークと心理戦のゲームです。
 
