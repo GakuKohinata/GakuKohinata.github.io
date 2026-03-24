@@ -6,7 +6,7 @@
 <style>
 body { font-family: sans-serif; text-align: center; margin: 20px; background:#111; color:#fff; }
 button { padding:10px 20px; margin:10px; font-size:16px; border:none; border-radius:8px; }
-input { padding:10px; font-size:16px; border-radius:6px; border:none; }
+input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 .hidden { display:none; }
 #timer { font-size:60px; margin:20px; }
 .card { background:#222; padding:20px; border-radius:12px; margin:10px auto; max-width:400px; }
@@ -17,22 +17,32 @@ input { padding:10px; font-size:16px; border-radius:6px; border:none; }
 <h1>ことば落とし ONLINE</h1>
 
 <div id="home" class="card">
-  <button onclick="createRoom()">ルーム作成（親）</button>
+  <h3>親（ルーム作成）</h3>
+  <select id="timeSelect">
+    <option value="60">1分</option>
+    <option value="120">2分</option>
+    <option value="180" selected>3分</option>
+  </select>
   <br>
+  <button onclick="createRoom()">ルーム作成</button>
+  <hr>
+  <h3>子（参加）</h3>
   <input id="roomInput" placeholder="ルームID">
-  <button onclick="joinRoom()">参加（子）</button>
+  <button onclick="joinRoom()">参加</button>
 </div>
 
 <div id="room" class="card hidden">
   <p>ルームID: <span id="roomIdDisplay"></span></p>
   <p id="roleText"></p>
   <p>お題: <span id="topic"></span></p>
+  <p id="joinStatus"></p>
   <p id="keywordArea" class="hidden">キーワード: <b id="keyword"></b></p>
   <button id="startBtn" class="hidden" onclick="startGame()">ゲーム開始</button>
 </div>
 
 <div id="talk" class="card hidden">
   <h2>会話中</h2>
+  <p>お題: <span id="topicTalk"></span></p>
   <div id="timer">180</div>
 </div>
 
@@ -42,13 +52,17 @@ input { padding:10px; font-size:16px; border-radius:6px; border:none; }
   <button onclick="submitGuess()">送信</button>
 </div>
 
+<div id="waiting" class="card hidden">
+  <h2>子が回答中...</h2>
+</div>
+
 <div id="result" class="card hidden">
   <h2 id="resultText"></h2>
+  <p>子の回答: <span id="childGuess"></span></p>
   <p>正解: <span id="correct"></span></p>
   <button onclick="location.reload()">もう一度</button>
 </div>
 
-<!-- Firebase v12 (module版) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getDatabase, ref, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
@@ -60,52 +74,49 @@ const firebaseConfig = {
   projectId: "kotobaotoshi",
   storageBucket: "kotobaotoshi.firebasestorage.app",
   messagingSenderId: "903893099798",
-  appId: "1:903893099798:web:8ca25f5015e960fede9c37",
-  measurementId: "G-BVQ517JW0Y"
+  appId: "1:903893099798:web:8ca25f5015e960fede9c37"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const topics = ["学校","旅行","恋愛","仕事","食べ物","休日"];
-const words = ["犬","スマホ","ラーメン","電車","ゲーム","映画"];
+// 100個トピック（抜粋）
+const topics = [
+"好きな漫画は？","最近見た映画は？","タイムマシンがあったら？","理想の休日は？","好きな食べ物は？",
+"最近ハマってることは？","子供の頃の夢は？","無人島に1つ持っていくなら？","好きな季節は？","旅行するならどこ？"
+];
 
-let roomId = "";
-let role = "";
+// 100単語（抜粋）
+const words = [
+"犬","猫","スマホ","ラーメン","電車","ゲーム","映画","寿司","YouTube","コーヒー"
+];
+
+let roomId="";
+let role="";
 let timer;
 
-window.createRoom = function(){
-  role = "parent";
-  roomId = Math.random().toString(36).substring(2,8);
+window.createRoom=function(){
+  role="parent";
+  roomId=Math.random().toString(36).substring(2,8);
 
-  const topic = topics[Math.floor(Math.random()*topics.length)];
-  const word = words[Math.floor(Math.random()*words.length)];
+  const topic=topics[Math.floor(Math.random()*topics.length)];
+  const word=words[Math.floor(Math.random()*words.length)];
+  const time=parseInt(document.getElementById("timeSelect").value);
 
-  set(ref(db, "rooms/"+roomId), {
-    topic: topic,
-    keyword: word,
-    phase: "waiting",
-    guess: ""
+  set(ref(db,"rooms/"+roomId),{
+    topic, keyword:word, phase:"waiting", guess:"", time, joined:false
   });
 
   enterRoom();
 }
 
-window.joinRoom = function(){
-  role = "child";
-  roomId = document.getElementById("roomInput").value.trim().toLowerCase();
+window.joinRoom=function(){
+  role="child";
+  roomId=document.getElementById("roomInput").value.trim();
 
-  if(!roomId){
-    alert("ルームIDを入力してください");
-    return;
-  }
-
-  // ルーム存在チェック
-  get(ref(db, "rooms/"+roomId)).then(snap=>{
-    if(!snap.exists()){
-      alert("そのルームは存在しません");
-      return;
-    }
+  get(ref(db,"rooms/"+roomId)).then(snap=>{
+    if(!snap.exists()){alert("ルームなし");return;}
+    update(ref(db,"rooms/"+roomId),{joined:true});
     enterRoom();
   });
 }
@@ -113,49 +124,46 @@ window.joinRoom = function(){
 function enterRoom(){
   document.getElementById("home").classList.add("hidden");
   document.getElementById("room").classList.remove("hidden");
-  document.getElementById("roomIdDisplay").textContent = roomId;
-  document.getElementById("roleText").textContent = role === "parent" ? "あなたは親" : "あなたは子";
+  document.getElementById("roomIdDisplay").textContent=roomId;
+  document.getElementById("roleText").textContent=role==="parent"?"あなたは親":"あなたは子";
 
-  onValue(ref(db, "rooms/"+roomId), snap=>{
-    const data = snap.val();
-    if(!data) return;
+  onValue(ref(db,"rooms/"+roomId),snap=>{
+    const d=snap.val(); if(!d)return;
 
-    document.getElementById("topic").textContent = data.topic;
+    document.getElementById("topic").textContent=d.topic;
+    document.getElementById("topicTalk").textContent=d.topic;
 
-    if(role === "parent"){
+    if(role==="parent"){
       document.getElementById("keywordArea").classList.remove("hidden");
-      document.getElementById("keyword").textContent = data.keyword;
+      document.getElementById("keyword").textContent=d.keyword;
       document.getElementById("startBtn").classList.remove("hidden");
+      document.getElementById("joinStatus").textContent=d.joined?"子が参加しました":"子を待っています";
     }
 
-    if(data.phase === "talk") startTalk();
-    if(data.phase === "guess") showGuess();
-    if(data.phase === "result") showResult(data);
+    if(d.phase==="talk")startTalk(d.time);
+    if(d.phase==="guess"){
+      if(role==="child")showGuess(); else showWaiting();
+    }
+    if(d.phase==="result")showResult(d);
   });
 }
 
-window.startGame = function(){
-  update(ref(db, "rooms/"+roomId), { phase:"talk", startTime: Date.now() });
+window.startGame=function(){
+  update(ref(db,"rooms/"+roomId),{phase:"talk",startTime:Date.now()});
 }
 
-function startTalk(){
+function startTalk(limit){
   document.getElementById("room").classList.add("hidden");
   document.getElementById("talk").classList.remove("hidden");
 
   clearInterval(timer);
+  timer=setInterval(async()=>{
+    const snap=await get(ref(db,"rooms/"+roomId+"/startTime"));
+    const start=snap.val();
+    const t=limit-Math.floor((Date.now()-start)/1000);
+    document.getElementById("timer").textContent=t;
 
-  timer = setInterval(async ()=>{
-    const snap = await get(ref(db, "rooms/"+roomId+"/startTime"));
-    const start = snap.val();
-    const now = Date.now();
-    const t = 180 - Math.floor((now-start)/1000);
-
-    document.getElementById("timer").textContent = t;
-
-    if(t<=0){
-      clearInterval(timer);
-      update(ref(db, "rooms/"+roomId), { phase:"guess" });
-    }
+    if(t<=0){clearInterval(timer);update(ref(db,"rooms/"+roomId),{phase:"guess"});}
   },1000);
 }
 
@@ -164,22 +172,25 @@ function showGuess(){
   document.getElementById("guess").classList.remove("hidden");
 }
 
-window.submitGuess = function(){
-  const g = document.getElementById("guessInput").value;
-  update(ref(db, "rooms/"+roomId), { guess:g, phase:"result" });
+function showWaiting(){
+  document.getElementById("talk").classList.add("hidden");
+  document.getElementById("waiting").classList.remove("hidden");
 }
 
-function showResult(data){
+window.submitGuess=function(){
+  const g=document.getElementById("guessInput").value;
+  update(ref(db,"rooms/"+roomId),{guess:g,phase:"result"});
+}
+
+function showResult(d){
   document.getElementById("guess").classList.add("hidden");
+  document.getElementById("waiting").classList.add("hidden");
   document.getElementById("result").classList.remove("hidden");
 
-  document.getElementById("correct").textContent = data.keyword;
+  document.getElementById("correct").textContent=d.keyword;
+  document.getElementById("childGuess").textContent=d.guess;
 
-  if(data.guess === data.keyword){
-    document.getElementById("resultText").textContent = "正解！";
-  }else{
-    document.getElementById("resultText").textContent = "不正解！";
-  }
+  document.getElementById("resultText").textContent = d.guess===d.keyword?"正解！":"不正解！";
 }
 </script>
 
