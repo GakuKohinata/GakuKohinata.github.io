@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ことば落とし（オンライン版）</title>
+<style>
+body { font-family: sans-serif; text-align: center; margin: 20px; background:#111; color:#fff; }
+button { padding:10px 20px; margin:10px; font-size:16px; border:none; border-radius:8px; }
+input { padding:10px; font-size:16px; border-radius:6px; border:none; }
+.hidden { display:none; }
+#timer { font-size:60px; margin:20px; }
+.card { background:#222; padding:20px; border-radius:12px; margin:10px auto; max-width:400px; }
+</style>
+</head>
+<body>
+
+<h1>ことば落とし ONLINE</h1>
+
+<div id="home" class="card">
+  <button onclick="createRoom()">ルーム作成（親）</button>
+  <br>
+  <input id="roomInput" placeholder="ルームID">
+  <button onclick="joinRoom()">参加（子）</button>
+</div>
+
+<div id="room" class="card hidden">
+  <p>ルームID: <span id="roomIdDisplay"></span></p>
+  <p id="roleText"></p>
+  <p>お題: <span id="topic"></span></p>
+  <p id="keywordArea" class="hidden">キーワード: <b id="keyword"></b></p>
+  <button id="startBtn" class="hidden" onclick="startGame()">ゲーム開始</button>
+</div>
+
+<div id="talk" class="card hidden">
+  <h2>会話中</h2>
+  <div id="timer">180</div>
+</div>
+
+<div id="guess" class="card hidden">
+  <h2>キーワードを予想</h2>
+  <input id="guessInput">
+  <button onclick="submitGuess()">送信</button>
+</div>
+
+<div id="result" class="card hidden">
+  <h2 id="resultText"></h2>
+  <p>正解: <span id="correct"></span></p>
+  <button onclick="location.reload()">もう一度</button>
+</div>
+
+<!-- Firebase v12 (module版) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, get } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA14TRqoUUamI7EWvbEmmsT-koYOGxkayk",
+  authDomain: "kotobaotoshi.firebaseapp.com",
+  databaseURL: "https://kotobaotoshi-default-rtdb.firebaseio.com/",
+  projectId: "kotobaotoshi",
+  storageBucket: "kotobaotoshi.firebasestorage.app",
+  messagingSenderId: "903893099798",
+  appId: "1:903893099798:web:8ca25f5015e960fede9c37",
+  measurementId: "G-BVQ517JW0Y"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const topics = ["学校","旅行","恋愛","仕事","食べ物","休日"];
+const words = ["犬","スマホ","ラーメン","電車","ゲーム","映画"];
+
+let roomId = "";
+let role = "";
+let timer;
+
+window.createRoom = function(){
+  role = "parent";
+  roomId = Math.random().toString(36).substring(2,8);
+
+  const topic = topics[Math.floor(Math.random()*topics.length)];
+  const word = words[Math.floor(Math.random()*words.length)];
+
+  set(ref(db, "rooms/"+roomId), {
+    topic: topic,
+    keyword: word,
+    phase: "waiting",
+    guess: ""
+  });
+
+  enterRoom();
+}
+
+window.joinRoom = function(){
+  role = "child";
+  roomId = document.getElementById("roomInput").value;
+  enterRoom();
+}
+
+function enterRoom(){
+  document.getElementById("home").classList.add("hidden");
+  document.getElementById("room").classList.remove("hidden");
+  document.getElementById("roomIdDisplay").textContent = roomId;
+  document.getElementById("roleText").textContent = role === "parent" ? "あなたは親" : "あなたは子";
+
+  onValue(ref(db, "rooms/"+roomId), snap=>{
+    const data = snap.val();
+    if(!data) return;
+
+    document.getElementById("topic").textContent = data.topic;
+
+    if(role === "parent"){
+      document.getElementById("keywordArea").classList.remove("hidden");
+      document.getElementById("keyword").textContent = data.keyword;
+      document.getElementById("startBtn").classList.remove("hidden");
+    }
+
+    if(data.phase === "talk") startTalk();
+    if(data.phase === "guess") showGuess();
+    if(data.phase === "result") showResult(data);
+  });
+}
+
+window.startGame = function(){
+  update(ref(db, "rooms/"+roomId), { phase:"talk", startTime: Date.now() });
+}
+
+function startTalk(){
+  document.getElementById("room").classList.add("hidden");
+  document.getElementById("talk").classList.remove("hidden");
+
+  clearInterval(timer);
+
+  timer = setInterval(async ()=>{
+    const snap = await get(ref(db, "rooms/"+roomId+"/startTime"));
+    const start = snap.val();
+    const now = Date.now();
+    const t = 180 - Math.floor((now-start)/1000);
+
+    document.getElementById("timer").textContent = t;
+
+    if(t<=0){
+      clearInterval(timer);
+      update(ref(db, "rooms/"+roomId), { phase:"guess" });
+    }
+  },1000);
+}
+
+function showGuess(){
+  document.getElementById("talk").classList.add("hidden");
+  document.getElementById("guess").classList.remove("hidden");
+}
+
+window.submitGuess = function(){
+  const g = document.getElementById("guessInput").value;
+  update(ref(db, "rooms/"+roomId), { guess:g, phase:"result" });
+}
+
+function showResult(data){
+  document.getElementById("guess").classList.add("hidden");
+  document.getElementById("result").classList.remove("hidden");
+
+  document.getElementById("correct").textContent = data.keyword;
+
+  if(data.guess === data.keyword){
+    document.getElementById("resultText").textContent = "正解！";
+  }else{
+    document.getElementById("resultText").textContent = "不正解！";
+  }
+}
+</script>
+
+</body>
+</html>
