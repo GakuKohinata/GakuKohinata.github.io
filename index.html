@@ -3,9 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <!-- Google AdSense -->
-<!-- ※ここにあなたのAdSenseコードを貼り付けてください -->
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6713194964843756"
-     crossorigin="anonymous"></script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6713194964843756" crossorigin="anonymous"></script>
 <title>ことば落とし（オンライン版）</title>
 <style>
 body { font-family: sans-serif; text-align: center; margin: 20px; background:#111; color:#fff; }
@@ -16,56 +14,67 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 .card { background:#222; padding:20px; border-radius:12px; margin:10px auto; max-width:420px; }
 .small { font-size:12px; color:#aaa; }
 
-#homeContainer {
-  display:flex;
-  justify-content:center;
-  gap:20px;
-  flex-wrap:wrap;
-}
+#homeContainer { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; }
 .roleBox { width:260px; padding:20px; border-radius:12px; }
 .parentBox { background:#5a1a1a; }
 .childBox { background:#1a2f5a; }
 .spectatorBox { background:#1a5a2f; }
+
+.childBtn { background:#2d6cdf; color:#fff; }
+.spectatorBtn { background:#2dbf6c; color:#fff; }
 </style>
 </head>
 <body>
 
 <h1 id="title"></h1>
 
-<!-- トップ -->
 <div id="home" class="card">
-  <h3>名前</h3>
-  <input id="nameInput" placeholder="名前を入力">
 
-  <div id="homeContainer">
+  <!-- URL参加専用UI -->
+  <div id="autoJoinArea" class="hidden">
+    <h3>ルーム参加</h3>
+    <p>ルームID: <span id="autoRoomId"></span></p>
+    <input id="autoNameInput" placeholder="名前を入力">
+    <br>
+    <button class="childBtn" onclick="autoJoin('child')">子で参加</button>
+    <button class="spectatorBtn" onclick="autoJoin('spectator')">観戦者で参加</button>
+    <hr>
+  </div>
 
-    <div class="roleBox parentBox">
-      <h3>親</h3>
-      <select id="timeSelect">
-        <option value="60">1分</option>
-        <option value="120">2分</option>
-        <option value="180" selected>3分</option>
-      </select>
-      <br>
-      <button onclick="createRoom()">ルーム作成</button>
+  <div id="normalUI">
+    <h3>名前</h3>
+    <input id="nameInput" placeholder="名前を入力">
+
+    <div id="homeContainer">
+
+      <div class="roleBox parentBox">
+        <h3>親</h3>
+        <select id="timeSelect">
+          <option value="60">1分</option>
+          <option value="120">2分</option>
+          <option value="180" selected>3分</option>
+        </select>
+        <br>
+        <button onclick="createRoom()">ルーム作成</button>
+      </div>
+
+      <div class="roleBox childBox">
+        <h3>子</h3>
+        <input id="roomInputChild" placeholder="ルームID">
+        <button onclick="joinRoom('child')">参加</button>
+      </div>
+
+      <div class="roleBox spectatorBox">
+        <h3>観戦者</h3>
+        <input id="roomInputSpectator" placeholder="ルームID">
+        <button onclick="joinRoom('spectator')">参加</button>
+      </div>
+
     </div>
-
-    <div class="roleBox childBox">
-      <h3>子</h3>
-      <input id="roomInputChild" placeholder="ルームID">
-      <button onclick="joinRoom('child')">参加</button>
-    </div>
-
-    <div class="roleBox spectatorBox">
-      <h3>観戦者</h3>
-      <input id="roomInputSpectator" placeholder="ルームID">
-      <button onclick="joinRoom('spectator')">参加</button>
-    </div>
-
   </div>
 </div>
 
-<!-- ルーム -->
+<!-- 以下ゲームUIはそのまま -->
 <div id="room" class="card hidden">
   <p>ルームID: <span id="roomIdDisplay"></span></p>
   <p class="small">URL共有: <span id="shareUrl"></span></p>
@@ -75,7 +84,6 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
   <button id="startBtn" class="hidden" onclick="startGame()">ゲーム開始</button>
 </div>
 
-<!-- 会話 -->
 <div id="talk" class="card hidden">
   <h2>会話中</h2>
   <p>お題: <span id="topicTalk"></span></p>
@@ -83,21 +91,18 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
   <div id="timer">0</div>
 </div>
 
-<!-- 推測 -->
 <div id="guess" class="card hidden">
   <h2>キーワードを予想</h2>
   <input id="guessInput">
   <button onclick="submitGuess()">送信</button>
 </div>
 
-<!-- 待機 -->
 <div id="waiting" class="card hidden">
   <h2>子が回答中...</h2>
   <p>お題: <span id="waitingTopic"></span></p>
   <p>キーワード: <span id="waitingKeyword"></span></p>
 </div>
 
-<!-- 結果 -->
 <div id="result" class="card hidden">
   <h2 id="resultText"></h2>
   <p><span id="childName"></span>の回答: <span id="childGuess"></span></p>
@@ -112,13 +117,14 @@ import { getDatabase, ref, set, update, onValue, get } from "https://www.gstatic
 // =========================
 // VERSION 管理
 // =========================
-const VERSION = "1.1.2";
+const VERSION = "1.1.3";
 
 /*
 更新ログ
-Ver1.1.2
-・トップUIを横並びに変更
-・親/子/観戦者で色分け
+Ver1.1.3
+・URL参加UIを復元（子/観戦者選択）
+・ボタンをテーマカラー化
+・URL参加と通常参加を両立
 */
 
 document.getElementById("title").textContent = `ことば落とし ONLINE Ver${VERSION}`;
@@ -144,6 +150,35 @@ let role="";
 let name="";
 let timer;
 let isTalking=false;
+
+// URL参加
+const params = new URLSearchParams(location.search);
+const autoRoom = params.get("room");
+
+if(autoRoom){
+  document.getElementById("autoJoinArea").classList.remove("hidden");
+  document.getElementById("normalUI").classList.add("hidden");
+  document.getElementById("autoRoomId").textContent = autoRoom;
+}
+
+window.autoJoin=function(type){
+  name=document.getElementById("autoNameInput").value || type;
+  role=type;
+  roomId=autoRoom;
+
+  get(ref(db,"rooms/"+roomId)).then(snap=>{
+    if(!snap.exists()){alert("ルームなし"); location.href = location.origin + location.pathname; return;}
+
+    if(type==="child"){
+      update(ref(db,"rooms/"+roomId),{
+        joined:true,
+        "players/child":name
+      });
+    }
+
+    enterRoom();
+  });
+}
 
 window.createRoom=function(){
   name=document.getElementById("nameInput").value || "親";
