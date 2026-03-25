@@ -18,6 +18,13 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 <h1>ことば落とし ONLINE</h1>
 
 <div id="home" class="card">
+  <div id="autoJoinArea" class="hidden">
+    <h3>ルーム参加</h3>
+    <p>ルームID: <span id="autoRoomId"></span></p>
+    <input id="autoNameInput" placeholder="名前を入力">
+    <button onclick="autoJoin()">参加する</button>
+    <hr>
+  </div>
   <input id="nameInput" placeholder="名前を入力">
   <h3>親（ルーム作成）</h3>
   <select id="timeSelect">
@@ -95,6 +102,14 @@ let name="";
 let timer;
 let isTalking=false;
 
+// URLから自動参加
+const params = new URLSearchParams(location.search);
+const autoRoom = params.get("room");
+if(autoRoom){
+  document.getElementById("autoJoinArea").classList.remove("hidden");
+  document.getElementById("autoRoomId").textContent = autoRoom;
+}
+
 window.createRoom=function(){
   name=document.getElementById("nameInput").value || "親";
   role="parent";
@@ -110,6 +125,21 @@ window.createRoom=function(){
   });
 
   enterRoom();
+}
+
+window.autoJoin=function(){
+  name=document.getElementById("autoNameInput").value || "子";
+  role="child";
+  roomId=autoRoom;
+
+  get(ref(db,"rooms/"+roomId)).then(snap=>{
+    if(!snap.exists()){alert("ルームなし");return;}
+    update(ref(db,"rooms/"+roomId),{
+      joined:true,
+      "players/child":name
+    });
+    enterRoom();
+  });
 }
 
 window.joinRoom=function(){
@@ -128,10 +158,28 @@ window.joinRoom=function(){
 }
 
 function enterRoom(){
+  // URL自動参加時は子として入る
+  if(autoRoom && !role){
+    role = "child";
+    name = document.getElementById("nameInput").value || "子";
+    roomId = autoRoom;
+
+    update(ref(db,"rooms/"+roomId),{
+      joined:true,
+      "players/child":name
+    });
+  }
   document.getElementById("home").classList.add("hidden");
   document.getElementById("room").classList.remove("hidden");
   document.getElementById("roomIdDisplay").textContent=roomId;
-  document.getElementById("shareUrl").textContent=location.href+"?room="+roomId;
+  const shareLink = location.origin + location.pathname + "?room=" + roomId;
+  document.getElementById("shareUrl").textContent = shareLink;
+
+  // ワンクリックコピー
+  document.getElementById("shareUrl").onclick = () => {
+    navigator.clipboard.writeText(shareLink);
+    alert("URLをコピーしました！");
+  };
   document.getElementById("roleText").textContent=role==="parent"?"あなたは親":"あなたは子";
 
   onValue(ref(db,"rooms/"+roomId),snap=>{
