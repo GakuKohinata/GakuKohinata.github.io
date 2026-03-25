@@ -166,7 +166,7 @@ function startTalk(limit){
     const snap=await get(ref(db,"rooms/"+roomId+"/startTime"));
     const start=snap.val();
     const t=limit-Math.floor((Date.now()-start)/1000);
-    document.getElementById("timer").textContent=t;
+    document.getElementById("timer").textContent = Math.max(t,0);
 
     if(t<=0){
       clearInterval(timer);
