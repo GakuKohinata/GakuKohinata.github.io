@@ -94,6 +94,7 @@ const words = [
 let roomId="";
 let role="";
 let timer;
+let isTalking = false; // 二重起動防止
 
 window.createRoom=function(){
   role="parent";
@@ -112,10 +113,14 @@ window.createRoom=function(){
 
 window.joinRoom=function(){
   role="child";
-  roomId=document.getElementById("roomInput").value.trim();
+  roomId=document.getElementById("roomInput").value.trim().toLowerCase();
 
   get(ref(db,"rooms/"+roomId)).then(snap=>{
     if(!snap.exists()){alert("ルームなし");return;}
+    update(ref(db,"rooms/"+roomId),{joined:true});
+    enterRoom();
+  });
+}
     update(ref(db,"rooms/"+roomId),{joined:true});
     enterRoom();
   });
@@ -149,10 +154,14 @@ function enterRoom(){
 }
 
 window.startGame=function(){
+  const startBtn = document.getElementById("startBtn");
+  startBtn.disabled = true; // 連打防止
   update(ref(db,"rooms/"+roomId),{phase:"talk",startTime:Date.now()});
 }
 
 function startTalk(limit){
+  if(isTalking) return; // 二重起動防止
+  isTalking = true;
   document.getElementById("room").classList.add("hidden");
   document.getElementById("talk").classList.remove("hidden");
 
@@ -163,7 +172,11 @@ function startTalk(limit){
     const t=limit-Math.floor((Date.now()-start)/1000);
     document.getElementById("timer").textContent=t;
 
-    if(t<=0){clearInterval(timer);update(ref(db,"rooms/"+roomId),{phase:"guess"});}
+    if(t<=0){
+      clearInterval(timer);
+      isTalking = false;
+      update(ref(db,"rooms/"+roomId),{phase:"guess"});
+    }
   },1000);
 }
 
