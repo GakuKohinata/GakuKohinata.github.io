@@ -121,10 +121,6 @@ window.joinRoom=function(){
     enterRoom();
   });
 }
-    update(ref(db,"rooms/"+roomId),{joined:true});
-    enterRoom();
-  });
-}
 
 function enterRoom(){
   document.getElementById("home").classList.add("hidden");
