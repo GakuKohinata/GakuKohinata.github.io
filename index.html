@@ -220,7 +220,8 @@ function enterRoom(){
     alert("コピーしました");
   };
 
-  document.getElementById("roleText").textContent=role;
+  const roleMap = { parent: "あなたは親です", child: "あなたは子です", spectator: "あなたは観戦者です" };
+  document.getElementById("roleText").textContent = roleMap[role] || role;
 
   onValue(ref(db,"rooms/"+roomId),snap=>{
     const d=snap.val(); if(!d)return;
