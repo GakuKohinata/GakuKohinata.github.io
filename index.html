@@ -22,22 +22,10 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
     <h3>ルーム参加</h3>
     <p>ルームID: <span id="autoRoomId"></span></p>
     <input id="autoNameInput" placeholder="名前を入力">
-    <button onclick="autoJoin()">参加する</button>
-    <hr>
+    <br>
+    <button onclick="autoJoin('child')">子で参加</button>
+    <button onclick="autoJoin('spectator')">観戦者で参加</button>
   </div>
-  <input id="nameInput" placeholder="名前を入力">
-  <h3>親（ルーム作成）</h3>
-  <select id="timeSelect">
-    <option value="60">1分</option>
-    <option value="120">2分</option>
-    <option value="180" selected>3分</option>
-  </select>
-  <br>
-  <button onclick="createRoom()">ルーム作成</button>
-  <hr>
-  <h3>子（参加）</h3>
-  <input id="roomInput" placeholder="ルームID">
-  <button onclick="joinRoom()">参加</button>
 </div>
 
 <div id="room" class="card hidden">
@@ -45,7 +33,6 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
   <p class="small">URL共有: <span id="shareUrl"></span></p>
   <p id="roleText"></p>
   <p>お題: <span id="topic"></span></p>
-  <p id="joinStatus"></p>
   <p id="keywordArea" class="hidden">キーワード: <b id="keyword"></b></p>
   <button id="startBtn" class="hidden" onclick="startGame()">ゲーム開始</button>
 </div>
@@ -53,7 +40,8 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 <div id="talk" class="card hidden">
   <h2>会話中</h2>
   <p>お題: <span id="topicTalk"></span></p>
-  <div id="timer">Start</div>
+  <p id="keywordSpectator" class="hidden">キーワード: <span id="keywordSpectatorText"></span></p>
+  <div id="timer">0</div>
 </div>
 
 <div id="guess" class="card hidden">
@@ -63,18 +51,17 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 </div>
 
 <div id="waiting" class="card hidden">
-  <h2>回答待ち...</h2>
+  <h2>子が回答中...</h2>
+  <p>お題: <span id="waitingTopic"></span></p>
+  <p>キーワード: <span id="waitingKeyword"></span></p>
 </div>
 
 <div id="result" class="card hidden">
   <h2 id="resultText"></h2>
   <p><span id="childName"></span>の回答: <span id="childGuess"></span></p>
   <p>正解: <span id="correct"></span></p>
-  <button onclick="location.reload()">もう一度</button>
+  <button onclick="goHome()">もう一度</button>
 </div>
-
-<audio id="seStart" src="https://cdn.pixabay.com/audio/2022/03/15/audio_c1f3f.mp3"></audio>
-<audio id="seEnd" src="https://cdn.pixabay.com/audio/2022/03/10/audio_9c2b6.mp3"></audio>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
@@ -102,7 +89,6 @@ let name="";
 let timer;
 let isTalking=false;
 
-// URLから自動参加
 const params = new URLSearchParams(location.search);
 const autoRoom = params.get("room");
 if(autoRoom){
@@ -110,89 +96,58 @@ if(autoRoom){
   document.getElementById("autoRoomId").textContent = autoRoom;
 }
 
-window.createRoom=function(){
-  name=document.getElementById("nameInput").value || "親";
-  role="parent";
-  roomId=Math.random().toString(36).substring(2,8);
-
-  const topic=topics[Math.floor(Math.random()*topics.length)];
-  const word=words[Math.floor(Math.random()*words.length)];
-  const time=parseInt(document.getElementById("timeSelect").value);
-
-  set(ref(db,"rooms/"+roomId),{
-    topic, keyword:word, phase:"waiting", guess:"", time,
-    players:{ parent:name }, joined:false
-  });
-
-  enterRoom();
-}
-
-window.autoJoin=function(){
-  name=document.getElementById("autoNameInput").value || "子";
-  role="child";
+window.autoJoin=function(type){
+  name=document.getElementById("autoNameInput").value || type;
+  role=type;
   roomId=autoRoom;
 
   get(ref(db,"rooms/"+roomId)).then(snap=>{
     if(!snap.exists()){alert("ルームなし");return;}
-    update(ref(db,"rooms/"+roomId),{
-      joined:true,
-      "players/child":name
-    });
-    enterRoom();
-  });
-}
 
-window.joinRoom=function(){
-  name=document.getElementById("nameInput").value || "子";
-  role="child";
-  roomId=document.getElementById("roomInput").value.trim().toLowerCase();
+    let updateData={};
+    if(type==="child"){
+      updateData={joined:true,"players/child":name};
+    }
 
-  get(ref(db,"rooms/"+roomId)).then(snap=>{
-    if(!snap.exists()){alert("ルームなし");return;}
-    update(ref(db,"rooms/"+roomId),{
-      joined:true,
-      "players/child":name
-    });
+    update(ref(db,"rooms/"+roomId),updateData);
     enterRoom();
   });
 }
 
 function enterRoom(){
-  // URL自動参加時は子として入る
-  if(autoRoom && !role){
-    role = "child";
-    name = document.getElementById("nameInput").value || "子";
-    roomId = autoRoom;
-
-    update(ref(db,"rooms/"+roomId),{
-      joined:true,
-      "players/child":name
-    });
-  }
   document.getElementById("home").classList.add("hidden");
   document.getElementById("room").classList.remove("hidden");
   document.getElementById("roomIdDisplay").textContent=roomId;
+
   const shareLink = location.origin + location.pathname + "?room=" + roomId;
   document.getElementById("shareUrl").textContent = shareLink;
-
-  // ワンクリックコピー
-  document.getElementById("shareUrl").onclick = () => {
+  document.getElementById("shareUrl").onclick = ()=>{
     navigator.clipboard.writeText(shareLink);
-    alert("URLをコピーしました！");
+    alert("コピーしました");
   };
-  document.getElementById("roleText").textContent=role==="parent"?"あなたは親":"あなたは子";
+
+  document.getElementById("roleText").textContent=role;
 
   onValue(ref(db,"rooms/"+roomId),snap=>{
     const d=snap.val(); if(!d)return;
 
     document.getElementById("topic").textContent=d.topic;
     document.getElementById("topicTalk").textContent=d.topic;
+    document.getElementById("waitingTopic").textContent=d.topic;
+    document.getElementById("waitingKeyword").textContent=d.keyword;
 
-    if(role==="parent"){
+    if(role!=="child"){
       document.getElementById("keywordArea").classList.remove("hidden");
       document.getElementById("keyword").textContent=d.keyword;
+    }
+
+    if(role==="spectator"){
+      document.getElementById("keywordSpectator").classList.remove("hidden");
+      document.getElementById("keywordSpectatorText").textContent=d.keyword;
+    }
+
+    if(role==="parent"){
       document.getElementById("startBtn").classList.remove("hidden");
-      document.getElementById("joinStatus").textContent=d.joined?"参加あり":"待機中";
     }
 
     if(d.phase==="talk")startTalk(d.time);
@@ -204,7 +159,6 @@ function enterRoom(){
 }
 
 window.startGame=function(){
-  document.getElementById("seStart").play();
   update(ref(db,"rooms/"+roomId),{phase:"talk",startTime:Date.now()});
 }
 
@@ -223,7 +177,6 @@ function startTalk(limit){
     if(t<=0){
       clearInterval(timer);
       isTalking=false;
-      document.getElementById("seEnd").play();
       update(ref(db,"rooms/"+roomId),{phase:"guess"});
     }
   },1000);
@@ -254,6 +207,10 @@ function showResult(d){
   document.getElementById("childName").textContent=d.players?.child || "子";
 
   document.getElementById("resultText").textContent = d.guess===d.keyword?"正解！":"不正解！";
+}
+
+window.goHome=function(){
+  location.href = location.origin + location.pathname;
 }
 </script>
 
