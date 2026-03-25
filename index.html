@@ -12,6 +12,9 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 .card { background:#222; padding:20px; border-radius:12px; margin:10px auto; max-width:420px; }
 .small { font-size:12px; color:#aaa; }
 </style>
+<style>
+#autoJoinArea { display:none; }
+</style>
 </head>
 <body>
 
@@ -19,6 +22,16 @@ input, select { padding:10px; font-size:16px; border-radius:6px; border:none; }
 
 <!-- トップ画面 -->
 <div id="home" class="card">
+  <!-- URL参加専用UI -->
+  <div id="autoJoinArea">
+    <h3>ルーム参加</h3>
+    <p>ルームID: <span id="autoRoomId"></span></p>
+    <input id="autoNameInput" placeholder="名前を入力">
+    <br>
+    <button onclick="autoJoin('child')">子で参加</button>
+    <button onclick="autoJoin('spectator')">観戦者で参加</button>
+    <hr>
+  </div>
   <h3>名前</h3>
   <input id="nameInput" placeholder="名前を入力">
 
@@ -111,6 +124,41 @@ let role="";
 let name="";
 let timer;
 let isTalking=false;
+
+// URLパラメータ処理
+const params = new URLSearchParams(location.search);
+const autoRoom = params.get("room");
+
+if(autoRoom){
+  document.getElementById("autoJoinArea").style.display = "block";
+  document.getElementById("autoRoomId").textContent = autoRoom;
+
+  // 通常UIを隠す
+  document.querySelector("#home > h3").style.display = "none";
+  document.getElementById("nameInput").style.display = "none";
+  document.querySelectorAll("#home hr, #home h3:not(:first-of-type), #home select, #home input:not(#autoNameInput), #home button:not([onclick^='autoJoin'])").forEach(el=>{
+    el.style.display = "none";
+  });
+}
+
+window.autoJoin=function(type){
+  name=document.getElementById("autoNameInput").value || type;
+  role=type;
+  roomId=autoRoom;
+
+  get(ref(db,"rooms/"+roomId)).then(snap=>{
+    if(!snap.exists()){alert("ルームなし");return;}
+
+    if(type==="child"){
+      update(ref(db,"rooms/"+roomId),{
+        joined:true,
+        "players/child":name
+      });
+    }
+
+    enterRoom();
+  });
+}
 
 window.createRoom=function(){
   name=document.getElementById("nameInput").value || "親";
