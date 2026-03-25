@@ -117,7 +117,7 @@ import { getDatabase, ref, set, update, onValue, get } from "https://www.gstatic
 // =========================
 // VERSION 管理
 // =========================
-const VERSION = "1.1.4";
+const VERSION = "1.1.5";
 
 /*
 更新ログ
@@ -128,6 +128,8 @@ Ver1.1.3
 Ver1.1.4
 ・単語追加
 ・タイマーバグ修正
+Ver1.1.5
+・子の名前入力がなかった時にchildと表示される問題を修正
 */
 
 document.getElementById("title").textContent = `ことば落とし ONLINE Ver${VERSION}`;
@@ -321,8 +323,15 @@ function showResult(d){
 
   document.getElementById("correct").textContent=d.keyword;
   document.getElementById("childGuess").textContent=d.guess;
+  
+  const childDisplayName =
+  (d.players &&
+   d.players.child &&
+   d.players.child.trim() !== "" &&
+   d.players.child !== "child")
+    ? d.players.child
+    : "子";
 
-  const childDisplayName = (d.players && d.players.child && d.players.child.trim() !== "") ? d.players.child : "子";
   document.getElementById("childName").textContent = childDisplayName;
 
   document.getElementById("resultText").textContent = d.guess===d.keyword?"正解！":"不正解！";
